@@ -1,0 +1,23 @@
+{
+  "consumer": "storefront",
+  "provider": "catalog-api",
+  "description": "The storefront can request the product catalog.",
+  "request": {
+    "method": "GET",
+    "path": "/api/products"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "type": "array",
+      "items": {
+        "required": ["id", "name", "price"],
+        "types": {
+          "id": "number",
+          "name": "string",
+          "price": "number"
+        }
+      }
+    }
+  }
+}

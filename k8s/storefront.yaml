@@ -1,0 +1,139 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: storefront-stable
+  namespace: storefront
+spec:
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+  selector:
+    app: storefront
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: storefront-canary
+  namespace: storefront
+spec:
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+  selector:
+    app: storefront
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: storefront
+  namespace: storefront
+spec:
+  replicas: 4
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 600
+  progressDeadlineAbort: true
+  selector:
+    matchLabels:
+      app: storefront
+  template:
+    metadata:
+      labels:
+        app: storefront
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: storefront
+          image: ghcr.io/example/storefront:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=75.0"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+  strategy:
+    canary:
+      stableService: storefront-stable
+      canaryService: storefront-canary
+      trafficRouting:
+        nginx:
+          stableIngress: storefront
+      maxSurge: 1
+      maxUnavailable: 0
+      scaleDownDelaySeconds: 30
+      steps:
+        - setWeight: 10
+        - pause:
+            duration: 60s
+        - setWeight: 30
+        - pause:
+            duration: 60s
+        - setWeight: 60
+        - pause:
+            duration: 60s
+        - setWeight: 100
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: storefront
+  namespace: storefront
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: storefront.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: storefront-stable
+                port:
+                  number: 80

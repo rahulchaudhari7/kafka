@@ -1,0 +1,115 @@
+name: Spring Boot CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      - name: Verify application and tests
+        run: mvn --batch-mode --no-transfer-progress verify
+
+  publish:
+    name: Build and publish container
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.name }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Normalize image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build and push immutable image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.image.outputs.name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Canary deploy to Kubernetes
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: publish
+    runs-on: ubuntu-latest
+    concurrency:
+      group: storefront-production
+      cancel-in-progress: false
+    environment: production
+    steps:
+      - name: Check out deployment manifests
+        uses: actions/checkout@v4
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.31.4
+      - name: Configure cluster access
+        env:
+          KUBECONFIG_BASE64: ${{ secrets.KUBECONFIG_BASE64 }}
+        run: |
+          test -n "$KUBECONFIG_BASE64" || { echo "KUBECONFIG_BASE64 secret is required"; exit 1; }
+          echo "$KUBECONFIG_BASE64" | base64 --decode > "$RUNNER_TEMP/kubeconfig"
+          chmod 600 "$RUNNER_TEMP/kubeconfig"
+          echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
+          kubectl version --client
+          kubectl cluster-info
+      - name: Install Argo Rollouts kubectl plugin
+        run: |
+          curl --fail --location --silent --show-error \
+            https://github.com/argoproj/argo-rollouts/releases/download/v1.8.3/kubectl-argo-rollouts-linux-amd64 \
+            --output kubectl-argo-rollouts
+          chmod +x kubectl-argo-rollouts
+          sudo mv kubectl-argo-rollouts /usr/local/bin/
+      - name: Create namespace and registry pull secret
+        env:
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+        run: |
+          test -n "$GHCR_USERNAME" || { echo "GHCR_USERNAME secret is required"; exit 1; }
+          test -n "$GHCR_READ_TOKEN" || { echo "GHCR_READ_TOKEN secret is required"; exit 1; }
+          kubectl apply -f k8s/namespace.yaml
+          kubectl create secret docker-registry ghcr-pull-secret \
+            --namespace storefront \
+            --docker-server=ghcr.io \
+            --docker-username="$GHCR_USERNAME" \
+            --docker-password="$GHCR_READ_TOKEN" \
+            --dry-run=client --output=yaml | kubectl apply -f -
+      - name: Apply canary rollout and ingress
+        env:
+          IMAGE: ${{ needs.publish.outputs.image }}
+        run: |
+          sed "s|ghcr.io/example/storefront:latest|$IMAGE|g" k8s/storefront.yaml |
+            kubectl apply -f -
+      - name: Wait for canary promotion
+        run: kubectl argo rollouts status storefront --namespace storefront --timeout 15m

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f7f5f0">
+    <meta name="description" content="Thoughtful everyday essentials for your desk.">
+    <title>Common Goods — Everyday essentials</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Common Goods home">
+        <span class="brand-mark" aria-hidden="true">c.</span>
+        <span>common goods</span>
+      </a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="#shop">Shop</a>
+        <a href="#about">Our story</a>
+      </nav>
+      <button class="cart-button" type="button" aria-label="Shopping bag, 0 items">
+        Bag <span class="cart-count" aria-live="polite">0</span>
+      </button>
+    </header>
+
+    <main>
+      <section class="hero" id="about">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="eyebrow-line"></span> Small things, made better</p>
+          <h1>Everyday essentials,<br><em>thoughtfully chosen.</em></h1>
+          <p class="hero-description">Good things for your desk, your day, and all the little moments in between.</p>
+          <a class="text-link" href="#shop">Find your everyday <span aria-hidden="true">↗</span></a>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <div class="sun-shape"></div>
+          <div class="art-paper paper-back"></div>
+          <div class="art-paper paper-front">
+            <span class="paper-lines"></span>
+            <span class="paper-label">make room<br>for good ideas</span>
+          </div>
+          <div class="art-pencil"></div>
+          <div class="art-spark spark-one">✳</div>
+          <div class="art-spark spark-two">✳</div>
+        </div>
+        <span class="hero-note">DESIGNED FOR THE EVERYDAY · EST. 2024</span>
+      </section>
+
+      <section class="shop-section" id="shop">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">The good stuff</p>
+            <h2>Made for your everyday</h2>
+          </div>
+          <label class="search-box">
+            <span class="visually-hidden">Search products</span>
+            <span aria-hidden="true">⌕</span>
+            <input id="product-search" type="search" placeholder="Find something..." autocomplete="off">
+          </label>
+        </div>
+        <div class="product-grid" id="product-grid" aria-live="polite">
+          <p class="status-message">Finding the good stuff...</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <a class="brand footer-brand" href="/">
+        <span class="brand-mark" aria-hidden="true">c.</span>
+        <span>common goods</span>
+      </a>
+      <p>Less, but a little lovelier.</p>
+      <span>© 2026 Common Goods</span>
+    </footer>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>
